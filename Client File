@@ -1,0 +1,150 @@
+package JAVAPROJECT;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.awt.event.*;
+import java.net.*;
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+
+public class Client implements ActionListener {
+
+    private static final Color INSTAGRAM_PURPLE = new Color(142, 68, 173);
+    private static final Color INSTAGRAM_PINK   = new Color(225, 48, 108);
+
+    private JTextField text;
+    private static Box vertical = Box.createVerticalBox();
+    private static JFrame frame = new JFrame();
+    private static DataOutputStream dout;
+
+    public Client() { buildUI("YOU"); }
+
+    private void buildUI(String username){
+        frame.setLayout(null);
+        frame.setSize(450,700);
+        frame.setLocation(800,50);          // right‑side of screen
+        frame.setUndecorated(true);
+        frame.getRootPane().setBorder(BorderFactory.createLineBorder(Color.BLACK));
+        frame.getContentPane().setBackground(Color.WHITE);
+
+        // Gradient header
+        JPanel titleBar = new JPanel(){ protected void paintComponent(Graphics g){ Graphics2D g2=(Graphics2D)g; g2.setPaint(new GradientPaint(0,0,INSTAGRAM_PINK,getWidth(),0,INSTAGRAM_PURPLE)); g2.fillRect(0,0,getWidth(),getHeight());}};
+        titleBar.setLayout(null);
+        titleBar.setBounds(0,0,450,70);
+        frame.add(titleBar);
+
+        JLabel close = new JLabel("\u2715");
+        close.setBounds(10,20,25,25);
+        close.setForeground(Color.WHITE);
+        close.setFont(new Font("Dialog",Font.BOLD,18));
+        close.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        close.addMouseListener(new MouseAdapter(){ public void mouseClicked(MouseEvent e){ System.exit(0);} });
+        titleBar.add(close);
+
+        JLabel name = new JLabel(username);
+        name.setBounds(50,15,200,20);
+        name.setForeground(Color.WHITE);
+        name.setFont(new Font("Segoe UI",Font.BOLD,18));
+        titleBar.add(name);
+
+        JLabel status = new JLabel("Active now");
+        status.setBounds(50,35,200,18);
+        status.setForeground(Color.WHITE);
+        status.setFont(new Font("Segoe UI",Font.PLAIN,14));
+        titleBar.add(status);
+
+        // Chat area
+        JPanel chatPanel = new JPanel(new BorderLayout());
+        chatPanel.setBounds(5,75,440,570);
+        chatPanel.setOpaque(false);
+        frame.add(chatPanel);
+
+        JScrollPane scroll = new JScrollPane(vertical);
+        scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        chatPanel.add(scroll,BorderLayout.CENTER);
+
+        // Message field & button
+        text = new JTextField();
+        text.setBounds(5,655,310,40);
+        text.setFont(new Font("Segoe UI",Font.PLAIN,16));
+        text.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(new Color(230,230,230)), BorderFactory.createEmptyBorder(5,10,5,10)));
+        frame.add(text);
+
+        JButton send = new JButton("Send");
+        send.setBounds(320,655,123,40);
+        send.setFont(new Font("Segoe UI",Font.BOLD,16));
+        send.setFocusPainted(false);
+        send.setForeground(Color.WHITE);
+        send.setBackground(avgGradient());
+        send.setBorderPainted(false);
+        send.addActionListener(this);
+        frame.add(send);
+
+        text.addActionListener(this);
+        frame.setVisible(true);
+    }
+
+    /* Button / Enter pressed */
+    @Override public void actionPerformed(ActionEvent e){
+        try{
+            String msgOut = text.getText().trim();
+            if(msgOut.isEmpty()) return;
+            JPanel bubble = createBubble(msgOut,true);
+            appendBubble(bubble,SwingConstants.RIGHT);
+            dout.writeUTF(msgOut);
+            text.setText("");
+        }catch(Exception ex){ ex.printStackTrace(); }
+    }
+
+    /* Networking loop */
+    public static void main(String[] args){
+        new Client();
+        try(Socket socket = new Socket("127.0.0.1",6001)){
+            DataInputStream din = new DataInputStream(socket.getInputStream());
+            dout               = new DataOutputStream(socket.getOutputStream());
+            while(true){
+                String msgIn = din.readUTF();
+                JPanel bubble = createBubble(msgIn,false);
+                SwingUtilities.invokeLater(() -> appendBubbleStatic(bubble,SwingConstants.LEFT));
+            }
+        }catch(Exception ex){ ex.printStackTrace(); }
+    }
+
+    /* Helpers */
+    private static JPanel createBubble(String txt, boolean outgoing){
+        JPanel panel = new JPanel(); panel.setLayout(new BoxLayout(panel,BoxLayout.Y_AXIS)); panel.setOpaque(false);
+        JLabel msg = new JLabel("<html><p style='width: 180px'>"+txt+"</p></html>");
+        msg.setFont(new Font("Segoe UI",Font.PLAIN,15));
+        msg.setBorder(new EmptyBorder(12,14,12,14));
+        msg.setOpaque(true);
+        msg.setForeground(outgoing?Color.WHITE:Color.BLACK);
+        msg.setBackground(outgoing?avgGradient():new Color(240,240,240));
+        msg.setAlignmentX(outgoing?Component.RIGHT_ALIGNMENT:Component.LEFT_ALIGNMENT);
+        panel.add(msg);
+        JLabel time = new JLabel(new SimpleDateFormat("HH:mm").format(Calendar.getInstance().getTime()));
+        time.setFont(new Font("Segoe UI",Font.PLAIN,11));
+        time.setForeground(Color.GRAY);
+        time.setAlignmentX(outgoing?Component.RIGHT_ALIGNMENT:Component.LEFT_ALIGNMENT);
+        panel.add(time);
+        return panel;
+    }
+
+    private void appendBubble(JPanel bubble,int align){ appendBubbleStatic(bubble,align); }
+    private static void appendBubbleStatic(JPanel bubble,int align){
+        JPanel wrap = new JPanel(new BorderLayout()); wrap.setOpaque(false);
+        if(align==SwingConstants.RIGHT) wrap.add(bubble,BorderLayout.LINE_END); else wrap.add(bubble,BorderLayout.LINE_START);
+        vertical.add(wrap);
+        vertical.add(Box.createVerticalStrut(10));
+        frame.revalidate();
+    }
+
+    private static Color avgGradient(){
+        return new Color((INSTAGRAM_PURPLE.getRed()+INSTAGRAM_PINK.getRed())/2,
+                (INSTAGRAM_PURPLE.getGreen()+INSTAGRAM_PINK.getGreen())/2,
+                (INSTAGRAM_PURPLE.getBlue()+INSTAGRAM_PINK.getBlue())/2);
+    }
+}
